@@ -2,14 +2,16 @@
   <img src="assets/calendatec-logo.png" alt="CalendaTEC" width="420" />
 </p>
 
-Convierte el PDF de **Mi horario** de [IRIS](https://iris.tec.mx) en un archivo `.ics` para Google Calendar, Outlook, Apple Calendar y más.
+Convierte el PDF de **Mi horario** de [IRIS](https://iris.tec.mx) en un archivo `.ics` para Google Calendar, Apple Calendar, Notion y más.
 
 Todo corre en tu navegador: el PDF no se sube a ningún servidor.
+
+**App:** [calendatec.vercel.app](https://calendatec.vercel.app)
 
 ## Cómo usarlo
 
 1. En IRIS, descarga tu horario en PDF.
-2. Abre CalendaTEC y sube ese PDF.
+2. Abre [CalendaTEC](https://calendatec.vercel.app) y sube ese PDF.
 3. Revisa la vista previa.
 4. Descarga el `.ics` e impórtalo en tu calendario.
 
@@ -29,9 +31,10 @@ npm run preview  # previsualizar el build
 
 ## Alternativa por terminal (Python)
 
-Si prefieres no usar la web:
+Si prefieres no usar la webapp:
 
 ```bash
 pip install pdfplumber icalendar
 python iris_to_ics.py HORARIO.pdf horario_tec.ics
 ```
+Este script fue porteado a Typescript para la realización de este proyecto.
