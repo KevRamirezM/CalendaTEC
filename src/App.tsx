@@ -34,75 +34,58 @@ type SectionCalendar = AcademicSection & {
 };
 
 const WEEK_DAYS: WeekDay[] = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-const DAY_NAMES: Record<WeekDay, string> = {
-  Lun: 'Lunes',
-  Mar: 'Martes',
-  Mié: 'Miércoles',
-  Jue: 'Jueves',
-  Vie: 'Viernes',
-  Sáb: 'Sábado',
-  Dom: 'Domingo',
+const DAY_SHORT: Record<WeekDay, string> = {
+  Lun: 'Lun',
+  Mar: 'Mar',
+  Mié: 'Mié',
+  Jue: 'Jue',
+  Vie: 'Vie',
+  Sáb: 'Sáb',
+  Dom: 'Dom',
 };
-const CALENDAR_ACCENTS = ['#005f73', '#ca6702', '#3a5a40', '#7f5539', '#6d597a', '#0a9396', '#bb3e03'];
+const CALENDAR_ACCENTS = ['#1b4dff', '#c2410c', '#0f766e', '#a16207', '#9f1239', '#be123c', '#0369a1'];
 const ACADEMIC_SECTIONS: AcademicSection[] = [
   {
     key: 'periodo-1',
     label: 'Periodo 1',
-    subtitle: '10 ago - 10 sep',
+    subtitle: '10 ago – 10 sep',
     startDate: new Date(2026, 7, 10),
     endDate: new Date(2026, 8, 10),
-    tone: '#005f73',
+    tone: '#1b4dff',
   },
   {
     key: 'semana-tec-1',
     label: 'Semana Tec 1',
-    subtitle: '14 sep - 18 sep',
+    subtitle: '14 – 18 sep',
     startDate: new Date(2026, 8, 14),
     endDate: new Date(2026, 8, 18),
-    tone: '#ca6702',
+    tone: '#c2410c',
   },
   {
     key: 'periodo-2',
     label: 'Periodo 2',
-    subtitle: '21 sep - 22 oct',
+    subtitle: '21 sep – 22 oct',
     startDate: new Date(2026, 8, 21),
     endDate: new Date(2026, 9, 22),
-    tone: '#3a5a40',
+    tone: '#0f766e',
   },
   {
     key: 'semana-tec-2',
     label: 'Semana Tec 2',
-    subtitle: '26 oct - 30 oct',
+    subtitle: '26 – 30 oct',
     startDate: new Date(2026, 9, 26),
     endDate: new Date(2026, 9, 30),
-    tone: '#7f5539',
+    tone: '#a16207',
   },
   {
     key: 'periodo-3',
     label: 'Periodo 3',
-    subtitle: '02 nov - 03 dic',
+    subtitle: '02 nov – 03 dic',
     startDate: new Date(2026, 10, 2),
     endDate: new Date(2026, 11, 3),
-    tone: '#6d597a',
+    tone: '#9f1239',
   },
 ];
-
-function updateMateria(materias: Materia[], index: number, key: 'materia' | 'ubicacion', value: string): Materia[] {
-  return materias.map((materia, currentIndex) => {
-    if (currentIndex !== index) {
-      return materia;
-    }
-
-    return {
-      ...materia,
-      [key]: value,
-    };
-  });
-}
-
-function formatRange(materia: Materia): string {
-  return `${materia.fecha_inicio} - ${materia.fecha_fin}`;
-}
 
 function splitDays(days: string): WeekDay[] {
   return days
@@ -146,8 +129,6 @@ export default function App() {
     document.title = 'CalendaTEC';
   }, []);
 
-  const totalClasses = useMemo(() => materias.reduce((count, materia) => count + materia.horarios.length, 0), [materias]);
-
   const calendarEntries = useMemo<CalendarEntry[]>(() => {
     return materias.flatMap((materia, materiaIndex) => {
       const sectionKey = classifySection(materia);
@@ -182,7 +163,7 @@ export default function App() {
           blocksInSection,
           dayColumns,
         };
-      }),
+      }).filter((section) => section.materias.length > 0),
     [calendarEntries, materias],
   );
 
@@ -224,201 +205,85 @@ export default function App() {
     setState('downloaded');
   }
 
+  const canDownload = state === 'ready' || state === 'downloaded';
+
   return (
     <main className="shell">
-      <section className="hero">
-        <div className="hero-copy">
-          <p className="eyebrow">CalendaTEC</p>
-          <h1>Convierte el horario de IRIS en un calendario importable, sin subir el PDF.</h1>
-          <p className="lede">
-            Sube tu comprobante de <strong>Mi horario</strong>, corrige si hace falta, y descarga un .ics listo para Google Calendar,
-            Outlook o Apple Calendar.
-          </p>
+      <header className="hero">
+        <p className="brand">CalendaTEC</p>
+        <h1>IRIS → calendario</h1>
+        <p className="lede">Sube tu PDF de Mi horario. Baja un .ics.</p>
 
-          <div className="upload-card">
-            <label className="upload-button">
-              <input accept="application/pdf" aria-label="Subir PDF de horario" type="file" onChange={handleFileSelected} />
-              <span>{state === 'loading' ? 'Analizando PDF…' : 'Elegir PDF de IRIS'}</span>
-            </label>
-            <p className="privacy-note">El archivo se procesa únicamente en tu navegador. Nada se sube a un servidor.</p>
-            {fileName ? <p className="file-chip">{fileName}</p> : null}
-            {error ? <p className="error-box">{error}</p> : null}
-          </div>
-
-          <div className="stats-row">
-            <div>
-              <span>Materias detectadas</span>
-              <strong>{materias.length}</strong>
-            </div>
-            <div>
-              <span>Bloques de horario</span>
-              <strong>{totalClasses}</strong>
-            </div>
-            <div>
-              <span>Estado</span>
-              <strong>{state === 'downloaded' ? 'Descargado' : state}</strong>
-            </div>
-          </div>
+        <div className="upload">
+          <label className="btn btn-primary">
+            <input accept="application/pdf" aria-label="Subir PDF de horario" type="file" onChange={handleFileSelected} />
+            <span>{state === 'loading' ? 'Leyendo…' : 'Subir PDF'}</span>
+          </label>
+          <p className="meta">Solo en tu navegador</p>
         </div>
 
-        <div className="hero-aside">
-          <div className="manifesto-card">
-            <p>Privacidad local</p>
-            <h2>Parser en navegador, ICS en navegador, sin backend.</h2>
-            <ul>
-              <li>pdf.js lee el PDF desde el dispositivo del estudiante.</li>
-              <li>La vista previa permite corregir materia y salón antes de exportar.</li>
-              <li>El `.ics` usa `VTIMEZONE` para America/Mexico_City.</li>
-            </ul>
-          </div>
-        </div>
-      </section>
+        {fileName ? <p className="file-name">{fileName}</p> : null}
+        {error ? <p className="error">{error}</p> : null}
+      </header>
 
-      <section className="panel calendar-panel">
-        <div className="panel-header">
-          <div>
-            <p className="eyebrow">Vista previa editable</p>
-            <h2>Horario dividido por periodo</h2>
+      {materias.length > 0 ? (
+        <section className="preview" aria-label="Vista previa del horario">
+          <div className="preview-bar">
+            <h2>
+              {materias.length} materias
+              <span>· {sectionedCalendar.length} periodos</span>
+            </h2>
+            <button className="btn btn-accent" disabled={!canDownload} onClick={handleDownload} type="button">
+              Descargar .ics
+            </button>
           </div>
-          <button className="download-button" disabled={state !== 'ready'} onClick={handleDownload} type="button">
-            Descargar .ics
-          </button>
-        </div>
 
-        {materias.length === 0 ? (
-          <div className="empty-state">
-            <p>Aún no hay materias cargadas. Sube un PDF de IRIS para ver aquí la semana completa del horario.</p>
-          </div>
-        ) : (
-          <div className="calendar-stack">
-            <div className="term-rail">
-              {sectionedCalendar.map((section) => (
-                <div key={section.key} className="term-pill" style={{ '--card-accent': section.tone } as CSSProperties}>
-                  <strong>{section.label}</strong>
-                  <span>{section.subtitle}</span>
+          <div className="terms">
+            {sectionedCalendar.map((section, index) => (
+              <section
+                key={section.key}
+                className="term"
+                style={{ '--term-accent': section.tone, '--reveal-delay': `${index * 80}ms` } as CSSProperties}
+              >
+                <header className="term-head">
+                  <h3>{section.label}</h3>
+                  <p>
+                    {section.subtitle}
+                    <span>{section.blocksInSection} bloques</span>
+                  </p>
+                </header>
+
+                <div className="week">
+                  {section.dayColumns.map(({ day, entries }) => (
+                    <div key={`${section.key}-${day}`} className="day">
+                      <div className="day-head">{DAY_SHORT[day]}</div>
+                      <div className="day-body">
+                        {entries.length === 0 ? (
+                          <div className="day-empty" />
+                        ) : (
+                          entries.map((entry) => (
+                            <article
+                              key={`${section.key}-${day}-${entry.materia.code}-${entry.scheduleIndex}`}
+                              className="block"
+                              style={{ '--block-accent': accentForIndex(entry.materiaIndex) } as CSSProperties}
+                            >
+                              <time>
+                                {entry.schedule.start}–{entry.schedule.end}
+                              </time>
+                              <strong>{entry.materia.code}</strong>
+                              <p>{entry.materia.materia}</p>
+                            </article>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-
-            <div className="term-sections">
-              {sectionedCalendar.map((section) => (
-                <section key={section.key} className="term-section" style={{ '--card-accent': section.tone } as CSSProperties}>
-                  <header className="term-section-header">
-                    <div>
-                      <p>{section.label}</p>
-                      <span>
-                        {section.subtitle} · {section.materias.length} materias · {section.blocksInSection} bloques
-                      </span>
-                    </div>
-                    <span className="term-section-badge">{section.key.includes('semana') ? 'Semana Tec' : 'Periodo'}</span>
-                  </header>
-
-                  <div className="mini-week-board">
-                    {section.dayColumns.map(({ day, entries }) => (
-                      <article key={`${section.key}-${day}`} className="mini-day-column">
-                        <header className="mini-day-header">
-                          <p>{DAY_NAMES[day]}</p>
-                          <span>{entries.length}</span>
-                        </header>
-                        <div className="mini-day-body">
-                          {entries.length === 0 ? (
-                            <div className="mini-day-empty">Libre</div>
-                          ) : (
-                            entries.map((entry) => (
-                              <article
-                                key={`${section.key}-${day}-${entry.materia.code}-${entry.scheduleIndex}`}
-                                className="mini-calendar-event"
-                                style={{ '--card-accent': accentForIndex(entry.materiaIndex) } as CSSProperties}
-                              >
-                                <div className="mini-event-topline">
-                                  <span>{entry.schedule.start}</span>
-                                  <span>{entry.schedule.end}</span>
-                                </div>
-                                <strong>{entry.materia.code}</strong>
-                                <p>{entry.materia.materia}</p>
-                              </article>
-                            ))
-                          )}
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-
-                  {section.materias.length === 0 ? (
-                    <div className="section-empty">Sin materias en este bloque</div>
-                  ) : (
-                    <div className="term-editors">
-                      {section.materias.map((materia) => {
-                        const materiaIndex = materias.findIndex((item) => item.code === materia.code && item.materia === materia.materia);
-
-                        return (
-                          <article
-                            key={`${section.key}-${materia.code}-${materiaIndex}`}
-                            className="course-card"
-                            style={{ '--card-accent': accentForIndex(Math.max(materiaIndex, 0)) } as CSSProperties}
-                          >
-                            <header className="course-card-header">
-                              <div>
-                                <span className="course-code">{materia.code}</span>
-                                <h3>
-                                  <input
-                                    aria-label={`Editar materia ${materia.code}`}
-                                    className="course-title-input"
-                                    value={materia.materia}
-                                    onChange={(event) => setMaterias(updateMateria(materias, materiaIndex, 'materia', event.target.value))}
-                                  />
-                                </h3>
-                              </div>
-                              <span className="range-chip">{formatRange(materia)}</span>
-                            </header>
-
-                            <p className="course-teachers">{materia.profesores}</p>
-
-                            <div className="course-schedules">
-                              {materia.horarios.map((schedule, scheduleIndex) => (
-                                <span key={`${schedule.days}-${scheduleIndex}`} className="schedule-chip">
-                                  {schedule.days} · {schedule.start} - {schedule.end}
-                                </span>
-                              ))}
-                            </div>
-
-                            <label className="field-label">
-                              Ubicación
-                              <input
-                                aria-label={`Editar ubicación ${materia.code}`}
-                                className="course-input"
-                                value={materia.ubicacion ?? ''}
-                                onChange={(event) => setMaterias(updateMateria(materias, materiaIndex, 'ubicacion', event.target.value))}
-                              />
-                            </label>
-                          </article>
-                        );
-                      })}
-                    </div>
-                  )}
-                </section>
-              ))}
-            </div>
+              </section>
+            ))}
           </div>
-        )}
-      </section>
 
-      {hasDownloaded ? (
-        <section className="panel instructions-panel">
-          <div>
-            <p className="eyebrow">Siguiente paso</p>
-            <h2>Importa el calendario en tu app favorita</h2>
-          </div>
-          <div className="instructions-grid">
-            <article>
-              <h3>Móvil</h3>
-              <p>Abre el archivo descargado y confirma “Agregar a calendario”. En iPhone, comparte el .ics hacia Calendario.</p>
-            </article>
-            <article>
-              <h3>Escritorio</h3>
-              <p>Arrastra el archivo a Google Calendar o usa Importar en Outlook / Apple Calendar.</p>
-            </article>
-          </div>
+          {hasDownloaded ? <p className="tip">Listo. Ábrelo en Google Calendar, Outlook o Apple.</p> : null}
         </section>
       ) : null}
     </main>
