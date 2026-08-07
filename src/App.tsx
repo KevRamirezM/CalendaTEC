@@ -89,12 +89,34 @@ export default function App() {
   const [fileName, setFileName] = useState('');
   const [materias, setMaterias] = useState<Materia[]>([]);
   const [hasDownloaded, setHasDownloaded] = useState(false);
+  const [activeDay, setActiveDay] = useState<WeekDay>('Lun');
 
   useEffect(() => {
     document.title = 'CalendaTEC';
   }, []);
 
   const sectionedCalendar = useMemo(() => buildSectionedCalendar(materias), [materias]);
+
+  const dayActivity = useMemo(() => {
+    const counts = Object.fromEntries(WEEK_DAYS.map((day) => [day, 0])) as Record<WeekDay, number>;
+    for (const section of sectionedCalendar) {
+      for (const column of section.dayColumns) {
+        counts[column.day] += column.entries.length;
+      }
+    }
+    return counts;
+  }, [sectionedCalendar]);
+
+  useEffect(() => {
+    if (materias.length === 0) {
+      return;
+    }
+
+    const firstBusyDay = WEEK_DAYS.find((day) => dayActivity[day] > 0);
+    if (firstBusyDay) {
+      setActiveDay(firstBusyDay);
+    }
+  }, [materias.length, dayActivity]);
 
   async function handleFileSelected(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -153,7 +175,7 @@ export default function App() {
             <input accept="application/pdf" aria-label="Subir PDF de horario" type="file" onChange={handleFileSelected} />
             <span>{state === 'loading' ? 'Leyendo…' : 'Subir PDF'}</span>
           </label>
-          <p className="meta">Se recomienda usar computadora</p>
+          <p className="meta">Se recomienda computadora para ver el horario completo.</p>
         </div>
 
         {fileName ? <p className="file-name">{fileName}</p> : null}
@@ -165,49 +187,106 @@ export default function App() {
           <IcsImportGuide canDownload={canDownload} hasDownloaded={hasDownloaded} onDownload={handleDownload} />
 
           <section className="preview" aria-label="Vista previa del horario">
-            <div className="terms">
-              {sectionedCalendar.map((section, index) => (
-                <section
-                  key={section.key}
-                  className="term"
-                  style={{ '--term-accent': section.tone, '--reveal-delay': `${index * 80}ms` } as CSSProperties}
-                >
-                  <header className="term-head">
-                    <h3>{section.label}</h3>
-                    <p>
-                      <span className="term-dates">{section.subtitle}</span>
-                      <span className="term-count">{section.materias.length} materias</span>
-                    </p>
-                  </header>
+            <div aria-label="Día de la semana" className="day-switcher" role="tablist">
+              {WEEK_DAYS.map((day) => {
+                const count = dayActivity[day];
+                const selected = activeDay === day;
+                return (
+                  <button
+                    aria-selected={selected}
+                    className={selected ? 'day-chip is-active' : count > 0 ? 'day-chip' : 'day-chip is-empty'}
+                    key={day}
+                    onClick={() => setActiveDay(day)}
+                    role="tab"
+                    type="button"
+                  >
+                    <span className="day-chip-label">{DAY_SHORT[day]}</span>
+                    {count > 0 ? <span className="day-chip-count">{count}</span> : null}
+                  </button>
+                );
+              })}
+            </div>
 
-                  <div className="week">
-                    {section.dayColumns.map(({ day, entries }) => (
-                      <div key={`${section.key}-${day}`} className="day">
-                        <div className="day-head">{DAY_SHORT[day]}</div>
-                        <div className="day-body">
-                          {entries.length === 0 ? (
-                            <div className="day-empty" />
-                          ) : (
-                            entries.map((entry) => (
-                              <article
-                                key={`${section.key}-${day}-${entry.materia.code}-${entry.scheduleIndex}-${entry.schedule.start}-${entry.schedule.end}`}
-                                className="block"
-                                style={{ '--block-accent': accentForIndex(entry.materiaIndex) } as CSSProperties}
-                              >
-                                <time>
-                                  {entry.schedule.start}–{entry.schedule.end}
-                                </time>
-                                <strong>{entry.materia.code}</strong>
-                                <p>{entry.materia.materia}</p>
-                              </article>
-                            ))
-                          )}
+            <div className="terms">
+              {sectionedCalendar.map((section, index) => {
+                const activeEntries = section.dayColumns.find((column) => column.day === activeDay)?.entries ?? [];
+
+                return (
+                  <section
+                    key={section.key}
+                    className="term"
+                    style={{ '--term-accent': section.tone, '--reveal-delay': `${index * 80}ms` } as CSSProperties}
+                  >
+                    <header className="term-head">
+                      <h3>{section.label}</h3>
+                      <p>
+                        <span className="term-dates">{section.subtitle}</span>
+                        <span className="term-count">{section.materias.length} materias</span>
+                      </p>
+                    </header>
+
+                    <div className="week week-desktop">
+                      {section.dayColumns.map(({ day, entries }) => (
+                        <div key={`${section.key}-${day}`} className="day">
+                          <div className="day-head">{DAY_SHORT[day]}</div>
+                          <div className="day-body">
+                            {entries.length === 0 ? (
+                              <div className="day-empty" />
+                            ) : (
+                              entries.map((entry) => (
+                                <article
+                                  key={`${section.key}-${day}-${entry.materia.code}-${entry.scheduleIndex}-${entry.schedule.start}-${entry.schedule.end}`}
+                                  className="block"
+                                  style={{ '--block-accent': accentForIndex(entry.materiaIndex) } as CSSProperties}
+                                >
+                                  <time>
+                                    {entry.schedule.start}–{entry.schedule.end}
+                                  </time>
+                                  <strong>{entry.materia.code}</strong>
+                                  <p>{entry.materia.materia}</p>
+                                </article>
+                              ))
+                            )}
+                          </div>
                         </div>
+                      ))}
+                    </div>
+
+                    <div className="week-mobile" role="tabpanel">
+                      <div className="week-mobile-head">
+                        <span className="week-mobile-day">{DAY_SHORT[activeDay]}</span>
+                        <span className="week-mobile-meta">
+                          {activeEntries.length === 0
+                            ? 'Sin clases'
+                            : `${activeEntries.length} ${activeEntries.length === 1 ? 'clase' : 'clases'}`}
+                        </span>
                       </div>
-                    ))}
-                  </div>
-                </section>
-              ))}
+                      <div className="week-mobile-body">
+                        {activeEntries.length === 0 ? (
+                          <p className="week-mobile-empty">No hay materias este día en este periodo.</p>
+                        ) : (
+                          activeEntries.map((entry) => (
+                            <article
+                              key={`${section.key}-mobile-${activeDay}-${entry.materia.code}-${entry.scheduleIndex}-${entry.schedule.start}-${entry.schedule.end}`}
+                              className="block block-mobile"
+                              style={{ '--block-accent': accentForIndex(entry.materiaIndex) } as CSSProperties}
+                            >
+                              <time>
+                                {entry.schedule.start}–{entry.schedule.end}
+                              </time>
+                              <strong>{entry.materia.code}</strong>
+                              <p>{entry.materia.materia}</p>
+                              {entry.materia.ubicacion ? (
+                                <span className="block-room">{entry.materia.ubicacion}</span>
+                              ) : null}
+                            </article>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </section>
+                );
+              })}
             </div>
           </section>
 
