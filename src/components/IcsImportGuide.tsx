@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import {
   AppleCalendarIcon,
   GoogleCalendarIcon,
+  NotionIcon,
   OutlookCalendarIcon,
   StepBrowserIcon,
   StepCheckIcon,
@@ -12,7 +13,7 @@ import {
   StepSettingsIcon,
 } from './icons';
 
-type Platform = 'google' | 'apple' | 'outlook';
+type Platform = 'google' | 'apple' | 'outlook' | 'notion';
 
 type GuideStep = {
   illustration: ReactNode;
@@ -23,6 +24,7 @@ const PLATFORMS: Array<{ id: Platform; label: string; icon: ReactNode }> = [
   { id: 'google', label: 'Google', icon: <GoogleCalendarIcon className="guide-platform-icon" /> },
   { id: 'apple', label: 'Apple', icon: <AppleCalendarIcon className="guide-platform-icon" /> },
   { id: 'outlook', label: 'Outlook', icon: <OutlookCalendarIcon className="guide-platform-icon" /> },
+  { id: 'notion', label: 'Notion', icon: <NotionIcon className="guide-platform-icon" /> },
 ];
 
 const STEPS: Record<Platform, GuideStep[]> = {
@@ -114,6 +116,41 @@ const STEPS: Record<Platform, GuideStep[]> = {
           Selecciona <code>horario_tec.ics</code> → elige calendario → <strong>Importar</strong>.
         </>
       ),
+    },
+  ],
+  notion: [
+    {
+      illustration: <StepBrowserIcon className="guide-step-art" />,
+      body: (
+        <>
+          Notion Calendar no importa <code>.ics</code> directo: primero impórtalo en{' '}
+          <strong>Google</strong> (pestaña de arriba).
+        </>
+      ),
+    },
+    {
+      illustration: <StepSettingsIcon className="guide-step-art" />,
+      body: (
+        <>
+          Abre{' '}
+          <a href="https://calendar.notion.so" rel="noreferrer" target="_blank">
+            calendar.notion.so
+          </a>{' '}
+          → inicia sesión.
+        </>
+      ),
+    },
+    {
+      illustration: <StepImportIcon className="guide-step-art" />,
+      body: (
+        <>
+          Conecta tu cuenta de <strong>Google Calendar</strong> en Ajustes.
+        </>
+      ),
+    },
+    {
+      illustration: <StepCheckIcon className="guide-step-art" />,
+      body: <>Tu horario Tec aparece sincronizado en Notion Calendar.</>,
     },
   ],
 };
