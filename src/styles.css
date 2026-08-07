@@ -370,14 +370,207 @@ input[type='file'] {
   overflow: hidden;
 }
 
-.tip {
-  margin: 28px 0 0;
+.guide {
+  margin-top: 36px;
+  padding-top: 28px;
+  border-top: 1.5px solid var(--ink);
+}
+
+.guide-ready {
+  margin: 0 0 12px;
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--ink);
 }
 
-.tip::before {
+.guide-ready::before {
+  content: '→ ';
+  color: var(--accent);
+}
+
+.guide-head {
+  margin-bottom: 20px;
+}
+
+.guide-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+}
+
+.guide-head h2 {
+  margin: 0;
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: clamp(1.35rem, 2.4vw, 1.7rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.guide-download {
+  flex-shrink: 0;
+}
+
+.guide-platforms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin-bottom: 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.guide-platform {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 2px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.guide-platform:hover {
+  color: var(--ink);
+}
+
+.guide-platform.is-active {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+
+.guide-platform-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.guide-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 18px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guide-step {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.guide-step-visual {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 88px;
+  padding: 10px;
+  border: 1.5px solid var(--ink);
+  background: var(--paper-2);
+  box-shadow: var(--shadow);
+}
+
+.guide-step-art {
+  width: 100%;
+  max-width: 120px;
+  height: auto;
+}
+
+.guide-step-num {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.guide-step-body {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.guide-step-body a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.guide-step-body a:hover {
+  text-decoration-thickness: 2px;
+}
+
+.guide-step-body code {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.84em;
+  font-weight: 600;
+  padding: 0.1em 0.35em;
+  border: 1px solid var(--line);
+  background: var(--paper-2);
+}
+
+.guide-step-body strong {
+  font-weight: 700;
+}
+
+.download-cta {
+  margin-top: 48px;
+  padding: 36px 0 8px;
+  border-top: 1.5px solid var(--ink);
+  text-align: center;
+}
+
+.btn-download {
+  width: 100%;
+  max-width: 100%;
+  min-height: 88px;
+  padding: 1.1rem 1.5rem;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: clamp(1.75rem, 5vw, 2.75rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.btn-download:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.btn-download:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.download-cta-done {
+  margin: 14px 0 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.download-cta-done::before {
   content: '→ ';
   color: var(--accent);
 }
@@ -393,12 +586,45 @@ input[type='file'] {
     align-items: stretch;
   }
 
-  .preview-bar .btn {
+  .week {
+    min-width: 840px;
+  }
+
+  .guide-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .guide-step {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .guide-step-visual {
+    flex: 0 0 112px;
+    min-height: 72px;
+    padding: 8px;
+  }
+
+  .guide-step-art {
+    max-width: 96px;
+  }
+
+  .guide-step-body {
+    padding-top: 4px;
+  }
+
+  .guide-title-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .guide-download {
     width: 100%;
   }
 
-  .week {
-    min-width: 840px;
+  .btn-download {
+    min-height: 72px;
   }
 }
 
@@ -408,7 +634,8 @@ input[type='file'] {
     animation: none;
   }
 
-  .btn {
+  .btn,
+  .guide-platform {
     transition: none;
   }
 }

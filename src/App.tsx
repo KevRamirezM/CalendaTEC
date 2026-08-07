@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { generateIcs } from '../ics-generator';
+import { IcsImportGuide } from './components/IcsImportGuide';
 import { parseIrisHorario } from './lib/iris-parser';
 import type { Materia } from './types';
 
@@ -227,64 +228,63 @@ export default function App() {
       </header>
 
       {materias.length > 0 ? (
-        <section className="preview" aria-label="Vista previa del horario">
-          <div className="preview-bar">
-            <h2>
-              {materias.length} materias
-              <span>· {sectionedCalendar.length} periodos</span>
-            </h2>
-            <button className="btn btn-accent" disabled={!canDownload} onClick={handleDownload} type="button">
+        <>
+          <IcsImportGuide canDownload={canDownload} hasDownloaded={hasDownloaded} onDownload={handleDownload} />
+
+          <section className="preview" aria-label="Vista previa del horario">
+            <div className="terms">
+              {sectionedCalendar.map((section, index) => (
+                <section
+                  key={section.key}
+                  className="term"
+                  style={{ '--term-accent': section.tone, '--reveal-delay': `${index * 80}ms` } as CSSProperties}
+                >
+                  <header className="term-head">
+                    <h3>{section.label}</h3>
+                    <p>
+                      {section.subtitle}
+                      <span>{section.blocksInSection} bloques</span>
+                    </p>
+                  </header>
+
+                  <div className="week">
+                    {section.dayColumns.map(({ day, entries }) => (
+                      <div key={`${section.key}-${day}`} className="day">
+                        <div className="day-head">{DAY_SHORT[day]}</div>
+                        <div className="day-body">
+                          {entries.length === 0 ? (
+                            <div className="day-empty" />
+                          ) : (
+                            entries.map((entry) => (
+                              <article
+                                key={`${section.key}-${day}-${entry.materia.code}-${entry.scheduleIndex}`}
+                                className="block"
+                                style={{ '--block-accent': accentForIndex(entry.materiaIndex) } as CSSProperties}
+                              >
+                                <time>
+                                  {entry.schedule.start}–{entry.schedule.end}
+                                </time>
+                                <strong>{entry.materia.code}</strong>
+                                <p>{entry.materia.materia}</p>
+                              </article>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </section>
+
+          <div className="download-cta">
+            <button className="btn btn-download" disabled={!canDownload} onClick={handleDownload} type="button">
               Descargar .ics
             </button>
+            {hasDownloaded ? <p className="download-cta-done">Archivo listo — impórtalo con la guía de arriba</p> : null}
           </div>
-
-          <div className="terms">
-            {sectionedCalendar.map((section, index) => (
-              <section
-                key={section.key}
-                className="term"
-                style={{ '--term-accent': section.tone, '--reveal-delay': `${index * 80}ms` } as CSSProperties}
-              >
-                <header className="term-head">
-                  <h3>{section.label}</h3>
-                  <p>
-                    {section.subtitle}
-                    <span>{section.blocksInSection} bloques</span>
-                  </p>
-                </header>
-
-                <div className="week">
-                  {section.dayColumns.map(({ day, entries }) => (
-                    <div key={`${section.key}-${day}`} className="day">
-                      <div className="day-head">{DAY_SHORT[day]}</div>
-                      <div className="day-body">
-                        {entries.length === 0 ? (
-                          <div className="day-empty" />
-                        ) : (
-                          entries.map((entry) => (
-                            <article
-                              key={`${section.key}-${day}-${entry.materia.code}-${entry.scheduleIndex}`}
-                              className="block"
-                              style={{ '--block-accent': accentForIndex(entry.materiaIndex) } as CSSProperties}
-                            >
-                              <time>
-                                {entry.schedule.start}–{entry.schedule.end}
-                              </time>
-                              <strong>{entry.materia.code}</strong>
-                              <p>{entry.materia.materia}</p>
-                            </article>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-
-          {hasDownloaded ? <p className="tip">Listo. Ábrelo en Google Calendar, Outlook o Apple.</p> : null}
-        </section>
+        </>
       ) : null}
     </main>
   );
