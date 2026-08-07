@@ -2,21 +2,11 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { generateIcs } from '../ics-generator';
 import { IcsImportGuide } from './components/IcsImportGuide';
 import { parseIrisHorario } from './lib/iris-parser';
+import { buildScheduleSections } from './lib/schedule-segments';
 import type { Materia } from './types';
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error' | 'downloaded';
 type WeekDay = 'Lun' | 'Mar' | 'Mié' | 'Jue' | 'Vie' | 'Sáb' | 'Dom';
-
-type AcademicSectionKey = 'periodo-1' | 'semana-tec-1' | 'periodo-2' | 'semana-tec-2' | 'periodo-3';
-
-type AcademicSection = {
-  key: AcademicSectionKey;
-  label: string;
-  subtitle: string;
-  startDate: Date;
-  endDate: Date;
-  tone: string;
-};
 
 type CalendarEntry = {
   day: WeekDay;
@@ -24,11 +14,13 @@ type CalendarEntry = {
   scheduleIndex: number;
   materia: Materia;
   schedule: Materia['horarios'][number];
-  sectionKey: AcademicSectionKey;
 };
 
-type SectionCalendar = AcademicSection & {
-  sectionIndex: number;
+type SectionCalendar = {
+  key: string;
+  label: string;
+  subtitle: string;
+  tone: string;
   materias: Materia[];
   dayColumns: Array<{ day: WeekDay; entries: CalendarEntry[] }>;
 };
@@ -44,48 +36,6 @@ const DAY_SHORT: Record<WeekDay, string> = {
   Dom: 'Dom',
 };
 const CALENDAR_ACCENTS = ['#1b4dff', '#c2410c', '#0f766e', '#a16207', '#9f1239', '#be123c', '#0369a1'];
-const ACADEMIC_SECTIONS: AcademicSection[] = [
-  {
-    key: 'periodo-1',
-    label: 'Periodo 1',
-    subtitle: '10 ago – 10 sep',
-    startDate: new Date(2026, 7, 10),
-    endDate: new Date(2026, 8, 10),
-    tone: '#1b4dff',
-  },
-  {
-    key: 'semana-tec-1',
-    label: 'Semana TEC 1',
-    subtitle: '14 – 18 sep',
-    startDate: new Date(2026, 8, 14),
-    endDate: new Date(2026, 8, 18),
-    tone: '#c2410c',
-  },
-  {
-    key: 'periodo-2',
-    label: 'Periodo 2',
-    subtitle: '21 sep – 22 oct',
-    startDate: new Date(2026, 8, 21),
-    endDate: new Date(2026, 9, 22),
-    tone: '#0f766e',
-  },
-  {
-    key: 'semana-tec-2',
-    label: 'Semana TEC 2',
-    subtitle: '26 – 30 oct',
-    startDate: new Date(2026, 9, 26),
-    endDate: new Date(2026, 9, 30),
-    tone: '#a16207',
-  },
-  {
-    key: 'periodo-3',
-    label: 'Periodo 3',
-    subtitle: '02 nov – 03 dic',
-    startDate: new Date(2026, 10, 2),
-    endDate: new Date(2026, 11, 3),
-    tone: '#9f1239',
-  },
-];
 
 function splitDays(days: string): WeekDay[] {
   return days
@@ -98,34 +48,39 @@ function accentForIndex(index: number): string {
   return CALENDAR_ACCENTS[index % CALENDAR_ACCENTS.length];
 }
 
-function parseDMYToDate(value: string): Date {
-  const [day, month, year] = value.split('.').map(Number);
-  return new Date(year, month - 1, day);
-}
+function buildSectionedCalendar(materias: Materia[]): SectionCalendar[] {
+  const sections = buildScheduleSections(materias);
 
-function rangesOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
-  return aStart <= bEnd && aEnd >= bStart;
-}
+  return sections.map((section, sectionIndex) => {
+    const sectionMaterias = section.materiaIndexes.map((index) => materias[index]);
 
-/** Periodos donde la materia tiene clase (el .ics ya lo cubre con RRULE; la UI debe reflejarlo). */
-function sectionsForMateria(materia: Materia): AcademicSectionKey[] {
-  if (!materia.fecha_inicio || !materia.fecha_fin) {
-    return [ACADEMIC_SECTIONS[0].key];
-  }
+    const dayColumns = WEEK_DAYS.map((day) => ({
+      day,
+      entries: section.materiaIndexes.flatMap((materiaIndex) => {
+        const materia = materias[materiaIndex];
+        return materia.horarios.flatMap((schedule, scheduleIndex) =>
+          splitDays(schedule.days)
+            .filter((scheduleDay) => scheduleDay === day)
+            .map((scheduleDay) => ({
+              day: scheduleDay,
+              materiaIndex,
+              scheduleIndex,
+              materia,
+              schedule,
+            })),
+        );
+      }),
+    }));
 
-  const startDate = parseDMYToDate(materia.fecha_inicio);
-  const endDate = parseDMYToDate(materia.fecha_fin);
-
-  const overlapping = ACADEMIC_SECTIONS.filter((section) =>
-    rangesOverlap(startDate, endDate, section.startDate, section.endDate),
-  ).map((section) => section.key);
-
-  if (overlapping.length > 0) {
-    return overlapping;
-  }
-
-  const fallback = [...ACADEMIC_SECTIONS].reverse().find((section) => startDate >= section.endDate);
-  return [fallback?.key ?? ACADEMIC_SECTIONS[0].key];
+    return {
+      key: section.key,
+      label: section.label,
+      subtitle: section.subtitle,
+      tone: accentForIndex(sectionIndex),
+      materias: sectionMaterias,
+      dayColumns,
+    };
+  });
 }
 
 export default function App() {
@@ -139,43 +94,7 @@ export default function App() {
     document.title = 'CalendaTEC';
   }, []);
 
-  const calendarEntries = useMemo<CalendarEntry[]>(() => {
-    return materias.flatMap((materia, materiaIndex) => {
-      const sectionKeys = sectionsForMateria(materia);
-
-      return sectionKeys.flatMap((sectionKey) =>
-        materia.horarios.flatMap((schedule, scheduleIndex) =>
-          splitDays(schedule.days).map((day) => ({
-            day,
-            materiaIndex,
-            scheduleIndex,
-            materia,
-            schedule,
-            sectionKey,
-          })),
-        ),
-      );
-    });
-  }, [materias]);
-
-  const sectionedCalendar = useMemo<SectionCalendar[]>(
-    () =>
-      ACADEMIC_SECTIONS.map((section, sectionIndex) => {
-        const materiasInSection = materias.filter((materia) => sectionsForMateria(materia).includes(section.key));
-        const dayColumns = WEEK_DAYS.map((day) => ({
-          day,
-          entries: calendarEntries.filter((entry) => entry.sectionKey === section.key && entry.day === day),
-        }));
-
-        return {
-          ...section,
-          sectionIndex,
-          materias: materiasInSection,
-          dayColumns,
-        };
-      }).filter((section) => section.materias.length > 0),
-    [calendarEntries, materias],
-  );
+  const sectionedCalendar = useMemo(() => buildSectionedCalendar(materias), [materias]);
 
   async function handleFileSelected(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
