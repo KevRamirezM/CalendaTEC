@@ -144,47 +144,84 @@ export type ScheduleSectionMeta = {
   materiaIndexes: number[];
 };
 
+function rangesOverlap(a: DateRange, b: DateRange): boolean {
+  return a.start <= b.end && a.end >= b.start;
+}
+
+function isSemanaTecMateria(m: Materia): boolean {
+  if (!m.fecha_inicio || !m.fecha_fin) return false;
+  const start = startOfDay(parseDMY(m.fecha_inicio));
+  const end = startOfDay(parseDMY(m.fecha_fin));
+  return durationDays(start, end) <= SEMANA_TEC_MAX_DAYS;
+}
+
 /**
- * Misma partición Periodo / Semana TEC que el .ics:
- * cursos largos no aparecen dentro de Semanas TEC.
+ * Vista previa: periodos canónicos = huecos entre Semanas TEC del horario.
+ * Las Semanas TEC solo muestran materias intensivas (no cursos de semestre).
+ * El .ics sigue usando teachingSegmentsForMateria por su cuenta.
  */
 export function buildScheduleSections(materias: Materia[]): ScheduleSectionMeta[] {
+  if (materias.length === 0) return [];
+
+  const dated = materias
+    .map((m, index) => ({ m, index }))
+    .filter(({ m }) => Boolean(m.fecha_inicio && m.fecha_fin));
+
+  if (dated.length === 0) return [];
+
   const semanaTecRanges = detectSemanaTecRanges(materias);
-  const groups = new Map<string, { seg: DateRange; indexes: Set<number> }>();
 
-  materias.forEach((materia, index) => {
-    if (!materia.fecha_inicio || !materia.fecha_fin) return;
+  let semesterStart = startOfDay(parseDMY(dated[0].m.fecha_inicio));
+  let semesterEnd = startOfDay(parseDMY(dated[0].m.fecha_fin));
+  for (const { m } of dated) {
+    const start = startOfDay(parseDMY(m.fecha_inicio));
+    const end = startOfDay(parseDMY(m.fecha_fin));
+    if (start < semesterStart) semesterStart = start;
+    if (end > semesterEnd) semesterEnd = end;
+  }
 
-    for (const seg of teachingSegmentsForMateria(materia, semanaTecRanges)) {
-      const key = segmentKey(seg);
-      const existing = groups.get(key);
-      if (existing) {
-        existing.indexes.add(index);
-      } else {
-        groups.set(key, { seg, indexes: new Set([index]) });
-      }
-    }
-  });
+  const periodoRanges = subtractRanges({ start: semesterStart, end: semesterEnd }, semanaTecRanges);
 
-  const sorted = Array.from(groups.entries()).sort(
-    (a, b) => a[1].seg.start.getTime() - b[1].seg.start.getTime(),
-  );
+  type RawSection = { kind: SegmentKind; seg: DateRange };
+  const raw: RawSection[] = [
+    ...periodoRanges.map((seg) => ({ kind: 'Periodo' as const, seg })),
+    ...semanaTecRanges.map((seg) => ({ kind: 'Semana TEC' as const, seg })),
+  ].sort((a, b) => a.seg.start.getTime() - b.seg.start.getTime());
 
   let periodoCount = 0;
   let semanaCount = 0;
 
-  return sorted.map(([key, { seg, indexes }]) => {
-    const kind = segmentKind(seg);
-    const label = kind === 'Semana TEC' ? `Semana TEC ${++semanaCount}` : `Periodo ${++periodoCount}`;
+  return raw
+    .map(({ kind, seg }) => {
+      const materiaIndexes = dated
+        .filter(({ m }) => {
+          const range = {
+            start: startOfDay(parseDMY(m.fecha_inicio)),
+            end: startOfDay(parseDMY(m.fecha_fin)),
+          };
 
-    return {
-      key,
-      label,
-      subtitle: formatDisplayRange(seg.start, seg.end),
-      kind,
-      start: seg.start,
-      end: seg.end,
-      materiaIndexes: Array.from(indexes).sort((a, b) => a - b),
-    };
-  });
+          if (kind === 'Semana TEC') {
+            return isSemanaTecMateria(m) && rangesOverlap(range, seg);
+          }
+
+          // Periodo: solo materias regulares que cruzan este hueco (no intensivas).
+          return !isSemanaTecMateria(m) && rangesOverlap(range, seg);
+        })
+        .map(({ index }) => index);
+
+      if (materiaIndexes.length === 0) return null;
+
+      const label = kind === 'Semana TEC' ? `Semana TEC ${++semanaCount}` : `Periodo ${++periodoCount}`;
+
+      return {
+        key: `${kind}-${segmentKey(seg)}`,
+        label,
+        subtitle: formatDisplayRange(seg.start, seg.end),
+        kind,
+        start: seg.start,
+        end: seg.end,
+        materiaIndexes,
+      };
+    })
+    .filter((section): section is ScheduleSectionMeta => section !== null);
 }

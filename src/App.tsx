@@ -153,7 +153,7 @@ export default function App() {
             <input accept="application/pdf" aria-label="Subir PDF de horario" type="file" onChange={handleFileSelected} />
             <span>{state === 'loading' ? 'Leyendo…' : 'Subir PDF'}</span>
           </label>
-          <p className="meta">Solo en tu navegador</p>
+          <p className="meta">Se recomienda usar computadora</p>
         </div>
 
         {fileName ? <p className="file-name">{fileName}</p> : null}
