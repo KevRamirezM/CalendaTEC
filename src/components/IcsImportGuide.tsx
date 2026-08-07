@@ -150,7 +150,7 @@ const STEPS: Record<Platform, GuideStep[]> = {
     },
     {
       illustration: <StepCheckIcon className="guide-step-art" />,
-      body: <>Tu horario Tec aparece sincronizado en Notion Calendar.</>,
+      body: <>Tu horario TEC aparece sincronizado en Notion Calendar.</>,
     },
   ],
 };

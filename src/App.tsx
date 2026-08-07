@@ -56,7 +56,7 @@ const ACADEMIC_SECTIONS: AcademicSection[] = [
   },
   {
     key: 'semana-tec-1',
-    label: 'Semana Tec 1',
+    label: 'Semana TEC 1',
     subtitle: '14 – 18 sep',
     startDate: new Date(2026, 8, 14),
     endDate: new Date(2026, 8, 18),
@@ -72,7 +72,7 @@ const ACADEMIC_SECTIONS: AcademicSection[] = [
   },
   {
     key: 'semana-tec-2',
-    label: 'Semana Tec 2',
+    label: 'Semana TEC 2',
     subtitle: '26 – 30 oct',
     startDate: new Date(2026, 9, 26),
     endDate: new Date(2026, 9, 30),
@@ -192,7 +192,7 @@ export default function App() {
   }
 
   function handleDownload() {
-    const ics = generateIcs(materias, 'Horario Tec');
+    const ics = generateIcs(materias, 'Horario TEC');
     const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -212,8 +212,13 @@ export default function App() {
     <main className="shell">
       <header className="hero">
         <p className="brand">CalendaTEC</p>
-        <h1>IRIS → calendario</h1>
-        <p className="lede">Sube tu PDF de Mi horario. Baja un .ics.</p>
+        <h1>
+          IRIS <span aria-hidden="true" className="hero-arrow">
+            →
+          </span>{' '}
+          Calendario
+        </h1>
+        <p className="lede">Sube tu PDF descargado de IRIS para comenzar.</p>
 
         <div className="upload">
           <label className="btn btn-primary">

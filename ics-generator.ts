@@ -107,7 +107,7 @@ function escapeText(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/,/g, "\\,").replace(/;/g, "\\;");
 }
 
-export function generateIcs(materias: Materia[], calendarName = "Horario Tec"): string {
+export function generateIcs(materias: Materia[], calendarName = "Horario TEC"): string {
   const events: string[] = [];
 
   for (const m of materias) {
