@@ -1,2 +1,7 @@
 dist
 node_modules
+
+# Gitignore pdfs e ics
+HORARIO_*.pdf
+horario_tec.ics
+*.ics
