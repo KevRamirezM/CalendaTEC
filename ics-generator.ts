@@ -1,23 +1,9 @@
 /**
  * ics-generator.ts
  *
- * Convierte el JSON de materias extraído del PDF de iris.tec.mx a un
- * archivo .ics importable en Google Calendar, Outlook, Apple Calendar, etc.
- *
- * Esto NO incluye el parseo del PDF (eso depende de qué librería de PDF
- * uses en Deno/Node — pdf-parse, unpdf, etc.). Este módulo asume que ya
- * tienes el horario en esta forma:
- *
- *   type HorarioBloque = { days: string; start: string; end: string };
- *   type Materia = {
- *     code: string;
- *     materia: string;
- *     profesores: string;
- *     horarios: HorarioBloque[];
- *     fecha_inicio: string; // "DD.MM.YYYY"
- *     fecha_fin: string;    // "DD.MM.YYYY"
- *     ubicacion: string | null;
- *   };
+ * Convierte materias IRIS a .ics. Los cursos largos se parten en segmentos
+ * de Periodo, excluyendo Semanas TEC detectadas en el mismo horario, para
+ * que no choquen en el calendario con las materias intensivas.
  */
 
 export interface HorarioBloque {
@@ -36,6 +22,11 @@ export interface Materia {
   ubicacion: string | null;
 }
 
+type DateRange = {
+  start: Date;
+  end: Date;
+};
+
 const DAY_MAP: Record<string, string> = {
   Lun: "MO",
   Mar: "TU",
@@ -46,19 +37,42 @@ const DAY_MAP: Record<string, string> = {
   Dom: "SU",
 };
 
+/** Índices de Date#getDay() (0=domingo … 6=sábado). */
 const DAY_INDEX: Record<string, number> = {
-  MO: 0,
-  TU: 1,
-  WE: 2,
-  TH: 3,
-  FR: 4,
-  SA: 5,
-  SU: 6,
+  SU: 0,
+  MO: 1,
+  TU: 2,
+  WE: 3,
+  TH: 4,
+  FR: 5,
+  SA: 6,
 };
+
+/** Rangos de ≤7 días en el PDF = Semana TEC (u otra semana intensiva). */
+const SEMANA_TEC_MAX_DAYS = 7;
 
 function parseDMY(s: string): Date {
   const [day, month, year] = s.split(".").map(Number);
   return new Date(year, month - 1, day);
+}
+
+function formatDMY(d: Date): string {
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+}
+
+function durationDays(start: Date, end: Date): number {
+  const ms = end.getTime() - start.getTime();
+  return Math.floor(ms / (1000 * 60 * 60 * 24)) + 1;
+}
+
+function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function addDays(d: Date, days: number): Date {
+  const next = new Date(d);
+  next.setDate(next.getDate() + days);
+  return startOfDay(next);
 }
 
 /** Primera fecha >= startDate que cae en alguno de los días de bydayList. */
@@ -107,49 +121,166 @@ function escapeText(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/,/g, "\\,").replace(/;/g, "\\;");
 }
 
-export function generateIcs(materias: Materia[], calendarName = "Horario TEC"): string {
-  const events: string[] = [];
+function detectSemanaTecRanges(materias: Materia[]): DateRange[] {
+  const seen = new Set<string>();
+  const ranges: DateRange[] = [];
 
   for (const m of materias) {
-    const startDate = parseDMY(m.fecha_inicio);
-    const endDate = parseDMY(m.fecha_fin);
-    const location = (m.ubicacion ?? "").replace(/\|/g, "-");
+    if (!m.fecha_inicio || !m.fecha_fin) continue;
+    const start = startOfDay(parseDMY(m.fecha_inicio));
+    const end = startOfDay(parseDMY(m.fecha_fin));
+    if (durationDays(start, end) > SEMANA_TEC_MAX_DAYS) continue;
+
+    const key = `${formatDMY(start)}|${formatDMY(end)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    ranges.push({ start, end });
+  }
+
+  return ranges.sort((a, b) => a.start.getTime() - b.start.getTime());
+}
+
+/** Quita huecos (Semanas TEC) de un rango de clases regulares. */
+function subtractRanges(base: DateRange, holes: DateRange[]): DateRange[] {
+  let segments: DateRange[] = [{ start: startOfDay(base.start), end: startOfDay(base.end) }];
+
+  for (const hole of holes) {
+    const holeStart = startOfDay(hole.start);
+    const holeEnd = startOfDay(hole.end);
+    const next: DateRange[] = [];
+
+    for (const seg of segments) {
+      if (holeEnd < seg.start || holeStart > seg.end) {
+        next.push(seg);
+        continue;
+      }
+
+      if (seg.start < holeStart) {
+        const leftEnd = addDays(holeStart, -1);
+        if (leftEnd >= seg.start) {
+          next.push({ start: seg.start, end: leftEnd });
+        }
+      }
+
+      if (seg.end > holeEnd) {
+        const rightStart = addDays(holeEnd, 1);
+        if (rightStart <= seg.end) {
+          next.push({ start: rightStart, end: seg.end });
+        }
+      }
+    }
+
+    segments = next;
+  }
+
+  return segments.filter((seg) => seg.start <= seg.end);
+}
+
+function teachingSegmentsForMateria(m: Materia, semanaTecRanges: DateRange[]): DateRange[] {
+  const start = startOfDay(parseDMY(m.fecha_inicio));
+  const end = startOfDay(parseDMY(m.fecha_fin));
+  const base = { start, end };
+
+  // Semana TEC / intensivo: un solo bloque, sin restar.
+  if (durationDays(start, end) <= SEMANA_TEC_MAX_DAYS) {
+    return [base];
+  }
+
+  return subtractRanges(base, semanaTecRanges);
+}
+
+function segmentKind(seg: DateRange): "Semana TEC" | "Periodo" {
+  return durationDays(seg.start, seg.end) <= SEMANA_TEC_MAX_DAYS ? "Semana TEC" : "Periodo";
+}
+
+function buildEvent(opts: {
+  uid: string;
+  materia: Materia;
+  segment: DateRange;
+  byday: string[];
+  startH: number;
+  startM: number;
+  endH: number;
+  endM: number;
+}): string | null {
+  const { uid, materia, segment, byday, startH, startM, endH, endM } = opts;
+  const dtstartDate = firstOccurrence(segment.start, byday);
+  if (dtstartDate > segment.end) {
+    return null;
+  }
+
+  const until = new Date(segment.end);
+  until.setHours(23, 59, 59);
+
+  const kind = segmentKind(segment);
+  const rangeLabel = `${formatDMY(segment.start)} - ${formatDMY(segment.end)}`;
+  const location = (materia.ubicacion ?? "").replace(/\|/g, "-");
+  const description = escapeText(
+    `Profesor(es): ${materia.profesores}\nCódigo: ${materia.code}\n${kind}: ${rangeLabel}`,
+  );
+
+  return [
+    "BEGIN:VEVENT",
+    foldLine(`UID:${uid}@calendatec`),
+    `DTSTAMP:${fmtUtc(new Date())}`,
+    `DTSTART;TZID=America/Mexico_City:${fmtLocal(dtstartDate, startH, startM)}`,
+    `DTEND;TZID=America/Mexico_City:${fmtLocal(dtstartDate, endH, endM)}`,
+    `RRULE:FREQ=WEEKLY;BYDAY=${byday.join(",")};UNTIL=${fmtUtc(until)}`,
+    foldLine(`SUMMARY:${escapeText(materia.materia)}`),
+    foldLine(`DESCRIPTION:${description}`),
+    foldLine(`LOCATION:${escapeText(location)}`),
+    foldLine(`CATEGORIES:${kind}`),
+    "END:VEVENT",
+  ].join("\r\n");
+}
+
+export function generateIcs(materias: Materia[], calendarName = "Horario TEC"): string {
+  const events: string[] = [];
+  const semanaTecRanges = detectSemanaTecRanges(materias);
+
+  for (const m of materias) {
+    if (!m.fecha_inicio || !m.fecha_fin) continue;
+
+    const segments = teachingSegmentsForMateria(m, semanaTecRanges);
 
     for (const h of m.horarios) {
       const daysEs = h.days.split(",").map((d) => d.trim());
-      const byday = daysEs.map((d) => DAY_MAP[d]);
-      const dtstartDate = firstOccurrence(startDate, byday);
+      const byday = daysEs.map((d) => DAY_MAP[d]).filter(Boolean);
+      if (byday.length === 0) continue;
 
       const [startH, startM] = h.start.split(":").map(Number);
       const [endH, endM] = h.end.split(":").map(Number);
 
-      const until = new Date(endDate);
-      until.setHours(23, 59, 59);
+      segments.forEach((segment, segmentIndex) => {
+        const uid = [
+          m.code,
+          h.days.replace(/\s+/g, ""),
+          h.start.replace(":", ""),
+          h.end.replace(":", ""),
+          formatDMY(segment.start),
+          formatDMY(segment.end),
+          String(segmentIndex),
+        ].join("-");
 
-      const uid = crypto.randomUUID();
-      const description = escapeText(`Profesor(es): ${m.profesores}\nCódigo: ${m.code}`);
+        const event = buildEvent({
+          uid,
+          materia: m,
+          segment,
+          byday,
+          startH,
+          startM,
+          endH,
+          endM,
+        });
 
-      events.push(
-        [
-          "BEGIN:VEVENT",
-          foldLine(`UID:${uid}@irisexport`),
-          `DTSTAMP:${fmtUtc(new Date())}`,
-          `DTSTART;TZID=America/Mexico_City:${fmtLocal(dtstartDate, startH, startM)}`,
-          `DTEND;TZID=America/Mexico_City:${fmtLocal(dtstartDate, endH, endM)}`,
-          `RRULE:FREQ=WEEKLY;BYDAY=${byday.join(",")};UNTIL=${fmtUtc(until)}`,
-          foldLine(`SUMMARY:${escapeText(m.materia)}`),
-          foldLine(`DESCRIPTION:${description}`),
-          foldLine(`LOCATION:${escapeText(location)}`),
-          "END:VEVENT",
-        ].join("\r\n")
-      );
+        if (event) {
+          events.push(event);
+        }
+      });
     }
   }
 
-  // VTIMEZONE explícito: México no usa horario de verano desde 2022, así
-  // que UTC-6 es fijo todo el año. Sin este bloque, varios clientes de
-  // calendario ignoran silenciosamente la recurrencia de eventos que usan
-  // TZID en vez de horas UTC puras.
+  // VTIMEZONE explícito: México no usa horario de verano desde 2022.
   const vtimezone = [
     "BEGIN:VTIMEZONE",
     "TZID:America/Mexico_City",
@@ -165,7 +296,7 @@ export function generateIcs(materias: Materia[], calendarName = "Horario TEC"): 
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Redito//Horario IRIS Export//ES",
+    "PRODID:-//CalendaTEC//Horario IRIS Export//ES",
     "CALSCALE:GREGORIAN",
     foldLine(`X-WR-CALNAME:${escapeText(calendarName)}`),
     vtimezone,
@@ -173,20 +304,3 @@ export function generateIcs(materias: Materia[], calendarName = "Horario TEC"): 
     "END:VCALENDAR",
   ].join("\r\n");
 }
-
-/* ------------------------------------------------------------------------
- * Ejemplo de uso dentro de una Supabase Edge Function:
- *
- *   import { generateIcs, type Materia } from "./ics-generator.ts";
- *
- *   Deno.serve(async (req) => {
- *     const { materias } = await req.json() as { materias: Materia[] };
- *     const ics = generateIcs(materias);
- *     return new Response(ics, {
- *       headers: {
- *         "Content-Type": "text/calendar; charset=utf-8",
- *         "Content-Disposition": 'attachment; filename="horario.ics"',
- *       },
- *     });
- *   });
- * ---------------------------------------------------------------------- */
