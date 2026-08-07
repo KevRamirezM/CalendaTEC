@@ -317,11 +317,19 @@ input[type='file'] {
   font-weight: 500;
 }
 
-.term-head p span {
+.term-dates {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.term-count {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 0.78rem;
   font-weight: 600;
-  color: var(--ink);
+  color: var(--muted);
 }
 
 .week {
@@ -388,10 +396,11 @@ input[type='file'] {
 .block time {
   display: block;
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.68rem;
+  font-size: 0.82rem;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--ink);
   letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
 .block strong {

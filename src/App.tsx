@@ -30,7 +30,6 @@ type CalendarEntry = {
 type SectionCalendar = AcademicSection & {
   sectionIndex: number;
   materias: Materia[];
-  blocksInSection: number;
   dayColumns: Array<{ day: WeekDay; entries: CalendarEntry[] }>;
 };
 
@@ -104,19 +103,29 @@ function parseDMYToDate(value: string): Date {
   return new Date(year, month - 1, day);
 }
 
-function isWithinSection(date: Date, section: AcademicSection): boolean {
-  return date >= section.startDate && date <= section.endDate;
+function rangesOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
+  return aStart <= bEnd && aEnd >= bStart;
 }
 
-function classifySection(materia: Materia): AcademicSectionKey {
+/** Periodos donde la materia tiene clase (el .ics ya lo cubre con RRULE; la UI debe reflejarlo). */
+function sectionsForMateria(materia: Materia): AcademicSectionKey[] {
+  if (!materia.fecha_inicio || !materia.fecha_fin) {
+    return [ACADEMIC_SECTIONS[0].key];
+  }
+
   const startDate = parseDMYToDate(materia.fecha_inicio);
-  const exactMatch = ACADEMIC_SECTIONS.find((section) => isWithinSection(startDate, section));
-  if (exactMatch) {
-    return exactMatch.key;
+  const endDate = parseDMYToDate(materia.fecha_fin);
+
+  const overlapping = ACADEMIC_SECTIONS.filter((section) =>
+    rangesOverlap(startDate, endDate, section.startDate, section.endDate),
+  ).map((section) => section.key);
+
+  if (overlapping.length > 0) {
+    return overlapping;
   }
 
   const fallback = [...ACADEMIC_SECTIONS].reverse().find((section) => startDate >= section.endDate);
-  return fallback?.key ?? ACADEMIC_SECTIONS[0].key;
+  return [fallback?.key ?? ACADEMIC_SECTIONS[0].key];
 }
 
 export default function App() {
@@ -132,17 +141,19 @@ export default function App() {
 
   const calendarEntries = useMemo<CalendarEntry[]>(() => {
     return materias.flatMap((materia, materiaIndex) => {
-      const sectionKey = classifySection(materia);
+      const sectionKeys = sectionsForMateria(materia);
 
-      return materia.horarios.flatMap((schedule, scheduleIndex) =>
-        splitDays(schedule.days).map((day) => ({
-          day,
-          materiaIndex,
-          scheduleIndex,
-          materia,
-          schedule,
-          sectionKey,
-        })),
+      return sectionKeys.flatMap((sectionKey) =>
+        materia.horarios.flatMap((schedule, scheduleIndex) =>
+          splitDays(schedule.days).map((day) => ({
+            day,
+            materiaIndex,
+            scheduleIndex,
+            materia,
+            schedule,
+            sectionKey,
+          })),
+        ),
       );
     });
   }, [materias]);
@@ -150,8 +161,7 @@ export default function App() {
   const sectionedCalendar = useMemo<SectionCalendar[]>(
     () =>
       ACADEMIC_SECTIONS.map((section, sectionIndex) => {
-        const materiasInSection = materias.filter((materia) => classifySection(materia) === section.key);
-        const blocksInSection = materiasInSection.reduce((count, materia) => count + materia.horarios.length, 0);
+        const materiasInSection = materias.filter((materia) => sectionsForMateria(materia).includes(section.key));
         const dayColumns = WEEK_DAYS.map((day) => ({
           day,
           entries: calendarEntries.filter((entry) => entry.sectionKey === section.key && entry.day === day),
@@ -161,7 +171,6 @@ export default function App() {
           ...section,
           sectionIndex,
           materias: materiasInSection,
-          blocksInSection,
           dayColumns,
         };
       }).filter((section) => section.materias.length > 0),
@@ -247,8 +256,8 @@ export default function App() {
                   <header className="term-head">
                     <h3>{section.label}</h3>
                     <p>
-                      {section.subtitle}
-                      <span>{section.blocksInSection} bloques</span>
+                      <span className="term-dates">{section.subtitle}</span>
+                      <span className="term-count">{section.materias.length} materias</span>
                     </p>
                   </header>
 
@@ -262,7 +271,7 @@ export default function App() {
                           ) : (
                             entries.map((entry) => (
                               <article
-                                key={`${section.key}-${day}-${entry.materia.code}-${entry.scheduleIndex}`}
+                                key={`${section.key}-${day}-${entry.materia.code}-${entry.scheduleIndex}-${entry.schedule.start}-${entry.schedule.end}`}
                                 className="block"
                                 style={{ '--block-accent': accentForIndex(entry.materiaIndex) } as CSSProperties}
                               >
