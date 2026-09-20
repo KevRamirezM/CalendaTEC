@@ -9,7 +9,7 @@ Todo corre en tu navegador: el PDF no se sube a ningún servidor.
 **App:** [calendatec.vercel.app](https://calendatec.vercel.app)
 
 <p align="center">
-  <img src="assets/dashboard-calendatec.png" alt="Dashboard" width="" />
+  <img src="assets/dashboard.png" alt="Dashboard" width="" />
 </p>
 
 ## Cómo usarlo
